@@ -14,6 +14,8 @@
 @interface JBCroppableView () {
     
     CGPoint lastPoint;
+    UIBezierPath *LastBezierPath;
+    BOOL isContainView;
 }
 
 @property (nonatomic, strong) NSArray *points;
@@ -343,6 +345,48 @@
     CGContextStrokePath(context);
 }
 
+//Detect Finger in BezierPath
+- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event{
+    
+    if (self.points.count <= 0) return NO;
+    
+    CGPoint locationPoint = point;
+    
+    for (UIView *pointView in self.points)
+    {
+        CGPoint viewPoint = [pointView convertPoint:locationPoint fromView:self];
+        
+        if ([pointView pointInside:viewPoint withEvent:event])
+        {
+            return  YES;
+            break;
+        }
+    }
+    
+    lastPoint = locationPoint;
+    
+    [LastBezierPath removeAllPoints];
+    
+    NSArray *points = [self getPoints];
+    
+    CGSize rectSize = CGSizeMake(IMAGESWIDTH, IMAGESHEIGHT);
+    
+    // Set the starting point of the shape.
+    CGPoint p1 = [JBCroppableView convertCGPoint:[[points objectAtIndex:0] CGPointValue] fromRect1:rectSize toRect2:rectSize];
+    [LastBezierPath moveToPoint:CGPointMake(p1.x, rectSize.height - p1.y)];
+    
+    for (uint i=1; i<points.count; i++)
+    {
+        CGPoint p = [JBCroppableView convertCGPoint:[[points objectAtIndex:i] CGPointValue] fromRect1:rectSize toRect2:rectSize];
+        [LastBezierPath addLineToPoint:CGPointMake(p.x, rectSize.height - p.y)];
+    }
+    
+    [LastBezierPath closePath];
+    
+    isContainView = [LastBezierPath containsPoint:point];
+    
+    return isContainView;
+}
 
 - (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event
 {
@@ -370,11 +414,14 @@
     
     if (!self.activePoint)
     {
-        for (UIView *point in self.points)
-        {
-            point.frame = CGRectOffset(point.frame, locationPoint.x - lastPoint.x, +locationPoint.y -lastPoint.y);
+        //if in BezierPath,move the view,else don't move
+        if (isContainView) {
+            for (UIView *point in self.points)
+            {
+                point.frame = CGRectOffset(point.frame, locationPoint.x - lastPoint.x, +locationPoint.y -lastPoint.y);
+            }
+            [self setNeedsDisplay];
         }
-        [self setNeedsDisplay];
     }
     else
     {
