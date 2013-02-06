@@ -369,7 +369,7 @@
     
     NSArray *points = [self getPoints];
     
-    CGSize rectSize = CGSizeMake(IMAGESWIDTH, IMAGESHEIGHT);
+    CGSize rectSize = self.frame.size;
     
     // Set the starting point of the shape.
     CGPoint p1 = [JBCroppableView convertCGPoint:[[points objectAtIndex:0] CGPointValue] fromRect1:rectSize toRect2:rectSize];
