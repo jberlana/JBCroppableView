@@ -38,6 +38,9 @@
         self.clipsToBounds   = YES;
         
         [self addPointsAt:nil];
+        self.userInteractionEnabled = YES;
+        isContainView = YES;
+        LastBezierPath = [UIBezierPath bezierPath];
     }
     return self;
 }
@@ -347,7 +350,6 @@
 
 //Detect Finger in BezierPath
 - (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event{
-    
     if (self.points.count <= 0) return NO;
     
     CGPoint locationPoint = point;
@@ -369,7 +371,7 @@
     
     NSArray *points = [self getPoints];
     
-    CGSize rectSize = self.frame.size;
+    CGSize rectSize = CGSizeMake(320, 548);
     
     // Set the starting point of the shape.
     CGPoint p1 = [JBCroppableView convertCGPoint:[[points objectAtIndex:0] CGPointValue] fromRect1:rectSize toRect2:rectSize];

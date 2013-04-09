@@ -272,12 +272,12 @@
 		423E21EB168372E1001CB06C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Distribution: MOBILE ONE2ONE S.L.";
+				CODE_SIGN_IDENTITY = "";
+				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "";
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "TestCroping/Crop Demo-Prefix.pch";
 				INFOPLIST_FILE = "TestCroping/Crop Demo-Info.plist";
 				PRODUCT_NAME = "Crop Demo";
-				"PROVISIONING_PROFILE[sdk=iphoneos*]" = "67400434-3E41-45C3-9B8E-B9DA0C29F7C6";
 				WRAPPER_EXTENSION = app;
 			};
 			name = Debug;
@@ -285,6 +285,7 @@
 		423E21EC168372E1001CB06C /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CODE_SIGN_IDENTITY = "";
 				"CODE_SIGN_IDENTITY[sdk=iphoneos*]" = "iPhone Developer: simon noel (7LMFUZ552E)";
 				GCC_PRECOMPILE_PREFIX_HEADER = YES;
 				GCC_PREFIX_HEADER = "TestCroping/Crop Demo-Prefix.pch";
