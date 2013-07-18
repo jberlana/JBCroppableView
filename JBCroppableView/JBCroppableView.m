@@ -11,6 +11,11 @@
 
 #define k_POINT_WIDTH 30
 
+#define iPhone5 ([UIScreen instancesRespondToSelector:@selector(currentMode)] ? CGSizeEqualToSize(CGSizeMake(640, 1136), [[UIScreen mainScreen] currentMode].size) : NO)
+
+#define IMAGESWIDTH (iPhone5 ? 320 : 270)
+#define IMAGESHEIGHT (iPhone5 ? 420 : 370)
+
 @interface JBCroppableView () {
     
     CGPoint lastPoint;
@@ -352,40 +357,45 @@
 - (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event{
     if (self.points.count <= 0) return NO;
     
-    CGPoint locationPoint = point;
-    
-    for (UIView *pointView in self.points)
-    {
-        CGPoint viewPoint = [pointView convertPoint:locationPoint fromView:self];
+    if ((CGRectContainsPoint(self.frame, point))) {
+        CGPoint locationPoint = point;
         
-        if ([pointView pointInside:viewPoint withEvent:event])
+        for (UIView *pointView in self.points)
         {
-            return  YES;
-            break;
+            CGPoint viewPoint = [pointView convertPoint:locationPoint fromView:self];
+            
+            if ([pointView pointInside:viewPoint withEvent:event])
+            {
+                return  YES;
+                break;
+            }
         }
+        
+        lastPoint = locationPoint;
+        
+        [LastBezierPath removeAllPoints];
+        
+        NSArray *points = [self getPoints];
+        
+        CGSize rectSize = CGSizeMake(IMAGESWIDTH, IMAGESHEIGHT);
+        
+        // Set the starting point of the shape.
+        CGPoint p1 = [JBCroppableView convertCGPoint:[[points objectAtIndex:0] CGPointValue] fromRect1:rectSize toRect2:rectSize];
+        [LastBezierPath moveToPoint:CGPointMake(p1.x, rectSize.height - p1.y)];
+        
+        for (uint i=1; i<points.count; i++)
+        {
+            CGPoint p = [JBCroppableView convertCGPoint:[[points objectAtIndex:i] CGPointValue] fromRect1:rectSize toRect2:rectSize];
+            [LastBezierPath addLineToPoint:CGPointMake(p.x, rectSize.height - p.y)];
+        }
+        
+        [LastBezierPath closePath];
+        
+        isContainView = [LastBezierPath containsPoint:point];
+        
+    } else {
+        isContainView = NO;
     }
-    
-    lastPoint = locationPoint;
-    
-    [LastBezierPath removeAllPoints];
-    
-    NSArray *points = [self getPoints];
-    
-    CGSize rectSize = CGSizeMake(320, 548);
-    
-    // Set the starting point of the shape.
-    CGPoint p1 = [JBCroppableView convertCGPoint:[[points objectAtIndex:0] CGPointValue] fromRect1:rectSize toRect2:rectSize];
-    [LastBezierPath moveToPoint:CGPointMake(p1.x, rectSize.height - p1.y)];
-    
-    for (uint i=1; i<points.count; i++)
-    {
-        CGPoint p = [JBCroppableView convertCGPoint:[[points objectAtIndex:i] CGPointValue] fromRect1:rectSize toRect2:rectSize];
-        [LastBezierPath addLineToPoint:CGPointMake(p.x, rectSize.height - p.y)];
-    }
-    
-    [LastBezierPath closePath];
-    
-    isContainView = [LastBezierPath containsPoint:point];
     
     return isContainView;
 }
