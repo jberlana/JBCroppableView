@@ -41,4 +41,4 @@ JBCroppableView is a subclass of UIView built with UIKit and CoreGraphics that a
 ![image](https://github.com/jberlana/JBCroppableView/raw/master/demo.png)
 
 ## Credit
-Javier Berlana, [Mobile One2One](http://www.mo2o.com/)
+Javier Berlana, [Mobile One2One](http://www.mo2o.com/)to keep the image the same size
