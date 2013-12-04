@@ -6,17 +6,12 @@
 //  Copyright (c) 2012 Mobile one2one. All rights reserved.
 //
 
-#import "JBCroppableView.h"
+#import "JBCroppableLayer.h"
 #import <QuartzCore/QuartzCore.h>
 
 #define k_POINT_WIDTH 30
 
-#define iPhone5 ([UIScreen instancesRespondToSelector:@selector(currentMode)] ? CGSizeEqualToSize(CGSizeMake(640, 1136), [[UIScreen mainScreen] currentMode].size) : NO)
-
-#define IMAGESWIDTH (iPhone5 ? 320 : 270)
-#define IMAGESHEIGHT (iPhone5 ? 420 : 370)
-
-@interface JBCroppableView () {
+@interface JBCroppableLayer () {
     
     CGPoint lastPoint;
     UIBezierPath *LastBezierPath;
@@ -24,17 +19,16 @@
 }
 
 @property (nonatomic, strong) NSArray *points;
-@property (nonatomic, strong) UIView *activePoint;
-
-+ (CGPoint)convertCGPoint:(CGPoint)point1 fromRect1:(CGSize)rect1 toRect2:(CGSize)rect2;
 
 @end
 
-@implementation JBCroppableView
+@implementation JBCroppableLayer
 
 - (id)initWithImageView:(UIImageView *)imageView
 {
-    self = [super initWithFrame:imageView.frame];
+    
+    CGRect newFrame = CGRectMake(0,0, imageView.frame.size.width, imageView.frame.size.height);
+    self = [super initWithFrame:newFrame];
     if (self) {
         
         self.backgroundColor = [UIColor clearColor];
@@ -144,7 +138,7 @@
     {
         float x = (self.frame.size.width -40) / ((int)pointsPerSide +1) * i;
         
-        point = [self getPointView:pointsAdded at:CGPointMake(x +20, self.frame.size.height -20)];
+        point = [self getPointView:pointsAdded at:CGPointMake(x +20, self.frame.size.height -50)];
         [tmp addObject:point];
         [self addSubview:point];
         pointsAdded ++;
@@ -215,89 +209,209 @@
 
 #pragma mark - Support methods
 
-+ (CGRect)scaleRespectAspectFromRect1:(CGRect)rect1 toRect2:(CGRect)rect2
-{
-    CGSize scaledSize = rect2.size;
-    
-    float scaleFactor = 1.0;
-    
-    CGFloat widthFactor  = rect2.size.width / rect1.size.width;
-    CGFloat heightFactor = rect2.size.height / rect1.size.width;
-    
-    if (widthFactor < heightFactor)
-        scaleFactor = widthFactor;
-    else
-        scaleFactor = heightFactor;
-    
-    scaledSize.height = rect1.size.height *scaleFactor;
-    scaledSize.width  = rect1.size.width  *scaleFactor;
-    
-    float y = (rect2.size.height - scaledSize.height)/2;
-    
-    return CGRectMake(0, y, scaledSize.width, scaledSize.height);
+
+-(CGFloat)distanceBetween:(CGPoint)first And:(CGPoint)last{
+    CGFloat xDist = (last.x - first.x);
+    if(xDist<0) xDist=xDist*-1;
+    CGFloat yDist = (last.y - first.y);
+    if(yDist<0) yDist=yDist*-1;
+    return sqrt((xDist * xDist) + (yDist * yDist));
 }
 
-
-+ (CGPoint)convertCGPoint:(CGPoint)point1 fromRect1:(CGSize)rect1 toRect2:(CGSize)rect2
-{
-    point1.y = rect1.height - point1.y;
-    CGPoint result = CGPointMake((point1.x*rect2.width)/rect1.width, (point1.y*rect2.height)/rect1.height);
-    return result;
+-(void)findPointAtLocation:(CGPoint)location{
+    self.activePoint.backgroundColor = self.pointColor;
+    self.activePoint = nil;
+    CGFloat smallestDistance = INFINITY;
+    
+    for (UIView *point in self.points)
+    {
+        CGRect extentedFrame = CGRectInset(point.frame, -20, -20);
+        if (CGRectContainsPoint(extentedFrame, location))
+        {
+            CGFloat distanceToThis = [self distanceBetween:point.frame.origin And:location];
+            if(distanceToThis<smallestDistance){
+                self.activePoint = point;
+                smallestDistance = distanceToThis;
+            }
+        }
+    }
+    if(self.activePoint) self.activePoint.backgroundColor = [UIColor redColor];
 }
 
-
-+ (CGPoint)convertPoint:(CGPoint)point1 fromRect1:(CGSize)rect1 toRect2:(CGSize)rect2
+- (void)moveActivePointToLocation:(CGPoint)locationPoint
 {
-    CGPoint result = CGPointMake((point1.x*rect2.width)/rect1.width, (point1.y*rect2.height)/rect1.height);
-    return result;
+    NSLog(@"location: %f,%f", locationPoint.x, locationPoint.y);
+    CGFloat newX = locationPoint.x;
+    CGFloat newY = locationPoint.y;
+    //cap off possible values
+    if(newX<0){
+        newX=0;
+    }else if(newX>self.frame.size.width){
+        newX = self.frame.size.width;
+    }
+    if(newY<0){
+        newY=0;
+    }else if(newY>self.frame.size.height){
+        newY = self.frame.size.height;
+    }
+    locationPoint = CGPointMake(newX, newY);
+    
+    if (self.activePoint){
+        
+        self.activePoint.frame = CGRectMake(locationPoint.x -k_POINT_WIDTH/2, locationPoint.y -k_POINT_WIDTH/2, k_POINT_WIDTH, k_POINT_WIDTH);
+        [self setNeedsDisplay];
+    }
 }
 
-- (UIImage *)deleteBackgroundOfImage:(UIImageView *)image
-{
+-(UIBezierPath *)getPath{
     if (self.points.count <= 0) return nil;
-    
     NSArray *points = [self getPoints];
+    
+    UIBezierPath *aPath = [UIBezierPath bezierPath];
+    
+    // Set the starting point of the shape.
+    CGPoint p1 = [[points objectAtIndex:0] CGPointValue];
+    [aPath moveToPoint:CGPointMake(p1.x, p1.y)];
+    
+    for (uint i=1; i<points.count; i++)
+    {
+        CGPoint p = [[points objectAtIndex:i] CGPointValue];
+        [aPath addLineToPoint:CGPointMake(p.x, p.y)];
+    }
+    [aPath closePath];
+    return aPath;
+}
+
+- (void)maskImageView:(UIImageView *)image
+{
+    UIBezierPath *path = [self getPath];
     
     CGRect rect = CGRectZero;
     rect.size = image.image.size;
     
-    UIGraphicsBeginImageContextWithOptions(rect.size, YES, 0.0);
-    
-    {
-        [[UIColor blackColor] setFill];
-        UIRectFill(rect);
-        [[UIColor whiteColor] setFill];
-        
-        UIBezierPath *aPath = [UIBezierPath bezierPath];
-        
-        // Set the starting point of the shape.
-        CGPoint p1 = [JBCroppableView convertCGPoint:[[points objectAtIndex:0] CGPointValue] fromRect1:image.frame.size toRect2:image.image.size];
-        [aPath moveToPoint:CGPointMake(p1.x, p1.y)];
-        
-        for (uint i=1; i<points.count; i++)
-        {
-            CGPoint p = [JBCroppableView convertCGPoint:[[points objectAtIndex:i] CGPointValue] fromRect1:image.frame.size toRect2:image.image.size];
-            [aPath addLineToPoint:CGPointMake(p.x, p.y)];
-        }
-        [aPath closePath];
-        [aPath fill];
-    }
-    
-    UIImage *mask = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
-    
-    UIGraphicsBeginImageContextWithOptions(rect.size, NO, 0.0);
-    
-    {
-        CGContextClipToMask(UIGraphicsGetCurrentContext(), rect, mask.CGImage);
-        [image.image drawAtPoint:CGPointZero];
-    }
-    
-    UIImage *maskedImage = UIGraphicsGetImageFromCurrentImageContext();
-    UIGraphicsEndImageContext();
-    
-    return maskedImage;
+    CAShapeLayer *shapeLayer = [CAShapeLayer layer];
+    shapeLayer.frame = CGRectMake(0, 0, image.frame.size.width, image.frame.size.height);
+    shapeLayer.path = path.CGPath;
+    shapeLayer.fillColor = [[UIColor whiteColor] CGColor];
+    shapeLayer.backgroundColor = [[UIColor clearColor] CGColor];
+    [image.layer setMask:shapeLayer];
 }
+
+-(UIImage *)getCroppedImageForView:(UIImageView *)view withTransparentBorders:(BOOL)transparent{
+    BOOL hidden = self.hidden;
+    self.hidden = YES;
+    CGSize size =view.layer.bounds.size;
+    
+    
+    UIGraphicsBeginImageContextWithOptions(size, NO, 0.0);
+    [view.layer renderInContext:UIGraphicsGetCurrentContext()];
+    UIImage *image = UIGraphicsGetImageFromCurrentImageContext();
+    UIGraphicsEndImageContext();
+    self.hidden = hidden;
+    if(!transparent) return image;
+    else return [self cropTransparencyFromImage:image];
+}
+
+#pragma mark - crop transparency
+
+-(UIImage *)cropTransparencyFromImage:(UIImage *)oldImage{
+    CGRect newRect = [self cropRectForImage:oldImage];
+    CGImageRef imageRef = CGImageCreateWithImageInRect(oldImage.CGImage, newRect);
+    UIImage *newImage = [UIImage imageWithCGImage:imageRef];
+    CGImageRelease(imageRef);
+    return newImage;
+}
+
+- (CGRect)cropRectForImage:(UIImage *)image {
+    
+    CGImageRef cgImage = image.CGImage;
+    CGContextRef context = [self createARGBBitmapContextFromImage:cgImage];
+    if (context == NULL) return CGRectZero;
+    
+    size_t width = CGImageGetWidth(cgImage);
+    size_t height = CGImageGetHeight(cgImage);
+    CGRect rect = CGRectMake(0, 0, width, height);
+    
+    CGContextDrawImage(context, rect, cgImage);
+    
+    unsigned char *data = CGBitmapContextGetData(context);
+    CGContextRelease(context);
+    
+    //Filter through data and look for non-transparent pixels.
+    long lowX = width;
+    long lowY = height;
+    long highX = 0;
+    long highY = 0;
+    if (data != NULL) {
+        for (int y=0; y<height; y++) {
+            for (int x=0; x<width; x++) {
+                long pixelIndex = (width * y + x) * 4 /* 4 for A, R, G, B */;
+                if (data[pixelIndex] != 0) { //Alpha value is not zero; pixel is not transparent.
+                    if (x < lowX) lowX = x;
+                    if (x > highX) highX = x;
+                    if (y < lowY) lowY = y;
+                    if (y > highY) highY = y;
+                }
+            }
+        }
+        free(data);
+    } else {
+        return CGRectZero;
+    }
+    
+    return CGRectMake(lowX, lowY, highX-lowX, highY-lowY);
+}
+
+- (CGContextRef)createARGBBitmapContextFromImage:(CGImageRef)inImage {
+    
+    CGContextRef context = NULL;
+    CGColorSpaceRef colorSpace;
+    void *bitmapData;
+    int bitmapByteCount;
+    int bitmapBytesPerRow;
+    
+    // Get image width, height. We'll use the entire image.
+    size_t width = CGImageGetWidth(inImage);
+    size_t height = CGImageGetHeight(inImage);
+    
+    // Declare the number of bytes per row. Each pixel in the bitmap in this
+    // example is represented by 4 bytes; 8 bits each of red, green, blue, and
+    // alpha.
+    bitmapBytesPerRow = (width * 4);
+    bitmapByteCount = (bitmapBytesPerRow * height);
+    
+    // Use the generic RGB color space.
+    colorSpace = CGColorSpaceCreateDeviceRGB();
+    if (colorSpace == NULL) return NULL;
+    
+    // Allocate memory for image data. This is the destination in memory
+    // where any drawing to the bitmap context will be rendered.
+    bitmapData = malloc( bitmapByteCount );
+    if (bitmapData == NULL)
+    {
+        CGColorSpaceRelease(colorSpace);
+        return NULL;
+    }
+    
+    // Create the bitmap context. We want pre-multiplied ARGB, 8-bits
+    // per component. Regardless of what the source image format is
+    // (CMYK, Grayscale, and so on) it will be converted over to the format
+    // specified here by CGBitmapContextCreate.
+    context = CGBitmapContextCreate (bitmapData,
+                                     width,
+                                     height,
+                                     8,      // bits per component
+                                     bitmapBytesPerRow,
+                                     colorSpace,
+                                     kCGImageAlphaPremultipliedFirst);
+    if (context == NULL) free (bitmapData);
+    
+    // Make sure and release colorspace before returning
+    CGColorSpaceRelease(colorSpace);
+    
+    return context;
+}
+
 
 #pragma mark - Draw & touch
 
@@ -353,106 +467,6 @@
     CGContextStrokePath(context);
 }
 
-//Detect Finger in BezierPath
-- (BOOL)pointInside:(CGPoint)point withEvent:(UIEvent *)event{
-    if (self.points.count <= 0) return NO;
-    
-    if ((CGRectContainsPoint(self.frame, point))) {
-        CGPoint locationPoint = point;
-        
-        for (UIView *pointView in self.points)
-        {
-            CGPoint viewPoint = [pointView convertPoint:locationPoint fromView:self];
-            
-            if ([pointView pointInside:viewPoint withEvent:event])
-            {
-                return  YES;
-                break;
-            }
-        }
-        
-        lastPoint = locationPoint;
-        
-        [LastBezierPath removeAllPoints];
-        
-        NSArray *points = [self getPoints];
-        
-        CGSize rectSize = CGSizeMake(IMAGESWIDTH, IMAGESHEIGHT);
-        
-        // Set the starting point of the shape.
-        CGPoint p1 = [JBCroppableView convertCGPoint:[[points objectAtIndex:0] CGPointValue] fromRect1:rectSize toRect2:rectSize];
-        [LastBezierPath moveToPoint:CGPointMake(p1.x, rectSize.height - p1.y)];
-        
-        for (uint i=1; i<points.count; i++)
-        {
-            CGPoint p = [JBCroppableView convertCGPoint:[[points objectAtIndex:i] CGPointValue] fromRect1:rectSize toRect2:rectSize];
-            [LastBezierPath addLineToPoint:CGPointMake(p.x, rectSize.height - p.y)];
-        }
-        
-        [LastBezierPath closePath];
-        
-        isContainView = [LastBezierPath containsPoint:point];
-        
-    } else {
-        isContainView = NO;
-    }
-    
-    return isContainView;
-}
 
-- (void)touchesBegan:(NSSet *)touches withEvent:(UIEvent *)event
-{
-    CGPoint locationPoint = [[touches anyObject] locationInView:self];
-    
-    for (UIView *point in self.points)
-    {
-        CGPoint viewPoint = [point convertPoint:locationPoint fromView:self];
-        
-        if ([point pointInside:viewPoint withEvent:event])
-        {
-            self.activePoint = point;
-            self.activePoint.backgroundColor = [UIColor redColor];
-            
-            break;
-        }
-    }
-    
-    lastPoint = locationPoint;
-}
-
-- (void)touchesMoved:(NSSet *)touches withEvent:(UIEvent *)event
-{
-    CGPoint locationPoint = [[touches anyObject] locationInView:self];
-    
-    if (!self.activePoint)
-    {
-        //if in BezierPath,move the view,else don't move
-        if (isContainView) {
-            for (UIView *point in self.points)
-            {
-                point.frame = CGRectOffset(point.frame, locationPoint.x - lastPoint.x, +locationPoint.y -lastPoint.y);
-            }
-            [self setNeedsDisplay];
-        }
-    }
-    else
-    {
-        self.activePoint.frame = CGRectMake(locationPoint.x -k_POINT_WIDTH/2, locationPoint.y -k_POINT_WIDTH/2, k_POINT_WIDTH, k_POINT_WIDTH);
-        [self setNeedsDisplay];
-    }
-    lastPoint = locationPoint;
-}
-
-- (void)touchesEnded:(NSSet *)touches withEvent:(UIEvent *)event
-{
-    self.activePoint.backgroundColor = self.pointColor;
-    self.activePoint = nil;
-}
-
-- (void)touchesCancelled:(NSSet *)touches withEvent:(UIEvent *)event
-{
-    self.activePoint.backgroundColor = self.pointColor;
-    self.activePoint = nil;
-}
 
 @end
